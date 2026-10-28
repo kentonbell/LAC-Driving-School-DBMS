@@ -8,6 +8,10 @@ export function App() {
           <h1 className="font-medium">Project ready!</h1>
           <h2 className="text-2xl font-bold">LAC Admin Dashboard</h2>
           <p>Manage students, lessons, and bookings.</p>
+          <div className="mt-4 rounded-lg border bg-white p-4 text-slate-900">
+          <h3 className="text-sm text-slate-500">New Students This Week</h3>
+          <p className="mt-2 text-3xl font-bold">12</p>
+          </div>
           <p>You may now add components and start building.</p>
           <p>We&apos;ve already added the button component for you.</p>
           <Button className="mt-2">Button</Button>

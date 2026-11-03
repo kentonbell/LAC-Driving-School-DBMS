@@ -1215,7 +1215,6 @@ textarea {
 .event-directions { margin-bottom: .65rem; }
 .assistant-title { display: flex; align-items: center; gap: .5rem; }
 .assistant-title svg { color: #286451; }
-.demo-reset { margin-top: .75rem; }
 
 .agenda-heading {
   display: grid;

@@ -1,10 +1,10 @@
-# LAC database — first draft
+# L.A.C. PostgreSQL database
 
 This draft implements the nine core tables in the supplied Technical Design
 Document and proposal. Names use PostgreSQL-style `snake_case`: `Student` becomes
 `student`, and `studentID` becomes `student_id`.
 
-## Files and execution order
+## Original schema fixtures
 
 1. `schema.sql`: creates the tables, rules, indexes and six reporting views.
 2. `seed.sql`: optional fictional demonstration records. Never run on real client data.
@@ -53,7 +53,7 @@ Primary keys identify records. Foreign keys connect them. For example,
 
 ## Provisional rules — confirm with the client
 
-- A lesson has one student and one instructor. Group classes are not modeled.
+- Each lesson has one primary student and one instructor. The workspace migration adds other group attendees.
 - Completed and no-show package lessons consume entitlement. Scheduled lessons
   reserve it; cancelled lessons release it. Confirm the no-show/cancellation rules.
 - Six purchased, two completed, one scheduled gives four remaining, one reserved,
@@ -71,8 +71,7 @@ Primary keys identify records. Foreign keys connect them. For example,
   travel buffers are not yet modeled.
 - Money is CAD, stored as exact decimal amounts. No tax/payment accounting is
   included. Email is required but shared contact emails are permitted.
-- Users have one role: admin, instructor, or student. Driver is provisionally
-  treated as instructor. Student login remains subject to scope confirmation.
+- Accounts have one role. Drivers use instructor records with a distinct staff role.
 - Feedback defaults to instructor-only. The API decides who may author/read it.
 
 ## Integrity and API responsibilities
@@ -89,26 +88,19 @@ The trigger locks the purchase during allocation. The API must retry a whole
 transaction on serialization failures, deadlocks, or slot uniqueness conflicts.
 Use PostgreSQL's default READ COMMITTED isolation or SERIALIZABLE with retries.
 
-Scheduling checks still belong in the API: active users/services, instructor
+The workspace booking function handles active users/services, instructor
 availability, lesson duration for its service, approved pickup points, and
 cancellation cutoffs/admin approval. Availability rows are informational; SQL
 does not require every historical lesson to fit a current availability window.
 Keep related changes in one transaction. When cancelling a purchase, first
 cancel its scheduled lessons. Lock the purchase before related multi-step edits.
 
-Authentication and record-level permissions are **not implemented by these SQL
-files**. Reports include all users' records. Only the trusted backend should have
-database credentials; it must derive identity from authentication and filter
-every query, including feedback visibility. No passwords are stored here.
-
-Payments, approval requests, group attendance, practice-test scores, vehicles,
-and a separate approved-pickup-location table need additional agreed design.
-This is a core database draft, not the full expanded UI feature set.
+Reports can include school-wide records. The Worker holds database credentials, derives identity from expiring access codes, scopes queries by role, and filters private feedback. No passwords are stored here.
 
 The seed uses fixed 2026/2027 dates so the balance example stays reproducible;
 upcoming/follow-up results depend on the date the queries are run.
 
-## Validation performed
+## Original fixture validation
 
 All four SQL files execute successfully in a temporary PGlite PostgreSQL runtime
 with `btree_gist`. Smoke tests cover the six-lesson balance example, instructor
@@ -119,3 +111,21 @@ integration testing; the local runtime check is not a concurrency test.
 
 PostgreSQL references: [range/exclusion constraints](https://www.postgresql.org/docs/current/rangetypes.html#RANGETYPES-CONSTRAINT)
 and [locking](https://www.postgresql.org/docs/current/explicit-locking.html).
+
+## Live workspace migrations
+
+Apply `schema.sql`, `portal.sql`, `workspace.sql`, and `catalog.sql` in order. The
+workspace adds group attendees, attendance and feedback, schedule blocks,
+approvals, and payment records. The Worker authenticates each request and reads
+only the records available to that role. Writes use parameterized operations.
+The workspace transaction lock coordinates booking and approval writes, including
+group attendees; the original exclusion constraints still protect individual
+student and instructor slots.
+
+`seed.sql` and `tests.sql` are the original core schema fixtures. For the full
+app, install `demo.sql` on a dedicated demo database instead. Run
+`demo-populate.sql` and `demo-empty.sql` to load and clear the demo; they are
+also available from **Admin → Demo Data**. Clearing preserves administrator
+accounts and credentials and refuses to run if students or staff have addresses
+outside `example.test`. Run `workspace-tests.sql` on a fresh disposable
+database after the demo migration to exercise the SQL workflows.

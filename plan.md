@@ -13,6 +13,7 @@
 - [x] Add role-specific workspace navigation, a compact mobile menu, and public links in the signed-in footer.
 - [x] Put All before Lessons in pricing and label the pickup directions lists.
 - [x] Add L.A.C. browser and home screen branding plus CareRide-style mobile install help after the first confirmed lesson.
-- [ ] Connect remaining demo workflows to the live API: approvals, groups, records, staff management, payments, reporting and reminders.
+- [x] Connect approvals, groups, records, staff management, payments, reporting and reminders to the live API.
+- [x] Replace browser demo accounts and sample state with admin controls for a dedicated PostgreSQL demo database.
 - [ ] Verify hosted Neon/Gemini, real concurrent booking attempts and PWA installation on a staging deployment.
 - [ ] Confirm production rules, account provisioning, credentials and approved data with the client before launch.

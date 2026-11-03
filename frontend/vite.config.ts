@@ -17,11 +17,19 @@ export default defineConfig({
         display: "standalone",
         theme_color: "#183e34",
         background_color: "#f8f5e9",
-        icons: [192, 512].map((n) => ({
-          src: "/brand/icon-" + n + ".png",
-          sizes: n + "x" + n,
-          type: "image/png",
-        })),
+        icons: [
+          ...[192, 512].map((n) => ({
+            src: "/brand/icon-" + n + ".png",
+            sizes: n + "x" + n,
+            type: "image/png",
+          })),
+          {
+            src: "/brand/icon-maskable.png",
+            sizes: "512x512",
+            type: "image/png",
+            purpose: "maskable",
+          },
+        ],
       },
       workbox: {
         globPatterns: ["**/*.{js,css,html,png,jpg,woff2}"],

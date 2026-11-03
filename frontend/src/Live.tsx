@@ -6,7 +6,7 @@ import { day, money, pickups, stamp } from "./catalog"
 import type { Role } from "./domain"
 export const apiOrigin = import.meta.env.VITE_API_URL?.replace(/\/$/, "") as
   string | undefined
-export type LiveUser = { name: string; role: Role }
+export type LiveUser = { name: string; role: Role; id?: string }
 type Row = Record<string, string | number | null>
 type Dashboard = {
   lessons: Row[]
@@ -83,10 +83,12 @@ export function Live({
   user,
   token,
   booking,
+  bookingConfirmed,
 }: {
   user: LiveUser
   token: string
   booking: boolean
+  bookingConfirmed: () => void
 }) {
   const [tab, setTab] = useState(
       booking && user.role === "student" ? "Book a Session" : "Dashboard"
@@ -300,6 +302,7 @@ export function Live({
                         purchase: f.get("purchase") || null,
                       })
                       setConfirmation(when(result.start_at) + " Pacific")
+                      bookingConfirmed()
                       setSelected(undefined)
                       setTimes(undefined)
                       refresh((v) => v + 1)

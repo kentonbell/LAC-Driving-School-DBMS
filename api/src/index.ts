@@ -306,7 +306,7 @@ export default {
       const sql = neon(env.DATABASE_URL);
       const u = await authenticate(req, sql);
       if (url.pathname === "/api/me" && req.method === "GET")
-        return json({ name: u.name, role: u.role });
+        return json({ id: u.user_id, name: u.name, role: u.role });
       if (url.pathname === "/api/dashboard" && req.method === "GET") {
         const month = url.searchParams.get("month");
         if (month !== null && !/^[1-9]\d{3}-(0[1-9]|1[0-2])$/.test(month))

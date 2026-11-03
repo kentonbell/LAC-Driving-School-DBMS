@@ -1227,3 +1227,35 @@ textarea {
 .agenda-heading h4 { font-size: 1.2rem; }
 .agenda-heading > p:last-child { color: var(--muted); font-size: .85rem; }
 .agenda-event .eyebrow { text-transform: capitalize; }
+
+.install-help {
+  width: min(29rem, calc(100% - 2rem));
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 1rem;
+  color: var(--ink);
+  background: var(--paper);
+}
+.install-help::backdrop {
+  background: rgb(23 45 41 / 65%);
+}
+.install-help > div {
+  padding: clamp(1rem, 5vw, 2rem);
+}
+.install-help img {
+  border-radius: 0.6rem;
+  margin-bottom: 0.75rem;
+}
+.install-help ol {
+  padding-left: 1.3rem;
+  line-height: 1.5;
+}
+.install-help li + li {
+  margin-top: 0.5rem;
+}
+
+@media (max-width: 420px) {
+  .workspace-identity:has(.workspace-install) .workspace-avatar {
+    display: none;
+  }
+}

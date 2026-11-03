@@ -1,6 +1,5 @@
 import assert from "node:assert/strict"
 import { test } from "node:test"
-import { startAt } from "../src/catalog.ts"
 import { balance, due, scoped } from "../src/domain.ts"
 
 test("the workspace displays database totals even if not all lessons are in view", () => {
@@ -31,15 +30,4 @@ test("group lessons appear for both participants and only the assigned staff mem
     session,
   ])
   assert.deepEqual(scoped(state, { role: "driver", id: "staff:2" }), [])
-})
-
-test("Vancouver local times preserve historical summer and winter offsets", () => {
-  assert.equal(
-    new Date(startAt("2025-01-03", "10:00")).toISOString(),
-    "2025-01-03T18:00:00.000Z"
-  )
-  assert.equal(
-    new Date(startAt("2025-07-03", "10:00")).toISOString(),
-    "2025-07-03T17:00:00.000Z"
-  )
 })

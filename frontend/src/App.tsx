@@ -1,10 +1,10 @@
 import { InstallHelp, installPlatform } from "./InstallHelp"
-import { AssistantButton } from "./WorkspaceActions"
 import { useEffect, useState, type MouseEvent } from "react"
-import { services, pickups, policies, money } from "./catalog"
-import { type Role, type State, seed, demoPeople } from "./domain"
-import { Portal, Chat } from "./Portal"
-import { Live, LiveSignIn, apiOrigin, type LiveUser } from "./Live"
+import { services, packages, pickups, policies, money } from "./catalog"
+import { Live, LiveSignIn } from "./Live"
+import { apiOrigin, call, type LiveUser } from "./api"
+import { PublicAssistant } from "./WorkspaceChat"
+import { AssistantButton } from "./WorkspaceActions"
 import "./site.css"
 
 const pages = [
@@ -30,28 +30,29 @@ const route = () => {
   return page === "policies" ? "hours" : page
 }
 const pathFor = (page: string) => (page === "home" ? "/" : "/" + page)
-const storage = "lac-demo-v1"
-function load(): State {
-  try {
-    return JSON.parse(localStorage.getItem(storage) || "null") ?? seed()
-  } catch {
-    return seed()
-  }
-}
 export default function App() {
   const [page, setPage] = useState(route),
     [menu, setMenu] = useState(false),
-    [state, setState] = useState(load),
-    [actor, setActor] = useState(
-      () => sessionStorage.getItem("lac-role") ?? ""
-    ),
-    [chat, setChat] = useState(false),
     [category, setCategory] = useState("Lessons"),
     [service, setService] = useState("lesson")
-  const [demoRevision, setDemoRevision] = useState(0)
+  const [publicCatalog, setPublicCatalog] = useState<{
+    services: typeof services
+    packages: typeof packages
+  }>()
+  const [chat, setChat] = useState(false)
+  useEffect(() => {
+    if (apiOrigin)
+      void call<{ services: typeof services; packages: typeof packages }>(
+        "catalog",
+        ""
+      )
+        .then(setPublicCatalog)
+        .catch(() => {})
+  }, [])
+  const listedServices = publicCatalog?.services ?? services
+  const listedPackages = publicCatalog?.packages ?? packages
   const [mapProvider, setMapProvider] = useState("google")
   const [live, setLive] = useState<{ token: string; user: LiveUser }>()
-  const user = state.people.find((p) => p.id === actor && p.active)
   useEffect(() => {
     const legacy = legacyRoute()
     if (legacy === "policies" || /^\/policies\/?$/.test(location.pathname)) {
@@ -67,15 +68,8 @@ export default function App() {
       setCategory("Lessons")
       if (!location.hash) window.scrollTo({ top: 0, behavior: "instant" })
     }
-    const sync = (event: StorageEvent) => {
-      if (event.key === storage) setState(load())
-    }
     addEventListener("popstate", change)
-    addEventListener("storage", sync)
-    return () => {
-      removeEventListener("popstate", change)
-      removeEventListener("storage", sync)
-    }
+    return () => removeEventListener("popstate", change)
   }, [])
   function navigate(path: string) {
     if (location.pathname + location.hash !== path)
@@ -107,20 +101,6 @@ export default function App() {
     event.preventDefault()
     navigate(path)
   }
-  function save(fn: (s: State) => State) {
-    const next = fn(load())
-    localStorage.setItem(storage, JSON.stringify(next))
-    setState(next)
-  }
-  function enter(role: Role) {
-    setLive(undefined)
-    const p = demoPeople.find((x) => x.role === role)!
-    if (!localStorage.getItem(storage))
-      localStorage.setItem(storage, JSON.stringify(state))
-    sessionStorage.setItem("lac-role", p.id)
-    setActor(p.id)
-    navigate(page === "book" ? "/book" : "/portal")
-  }
   function book(id = "lesson") {
     setService(id)
     navigate("/book")
@@ -134,18 +114,14 @@ export default function App() {
     </>
   )
   const portal = page === "portal" || page === "book"
-  const workspaceUser = portal ? (live?.user ?? user) : undefined
+  const workspaceUser = portal ? live?.user : undefined
   const [installOpen, setInstallOpen] = useState(false)
   const platform = installPlatform()
   function bookingConfirmed() {
     const account = live
       ? "live:" + (live.user.id ?? live.user.role + ":" + live.user.name)
-      : user && "demo:" + user.id
-    if (
-      !account ||
-      !platform ||
-      !matchMedia("(max-width: 760px)").matches
-    )
+      : undefined
+    if (!account || !platform || !matchMedia("(max-width: 760px)").matches)
       return
     try {
       const key = "lac-install-offered:" + account
@@ -159,8 +135,6 @@ export default function App() {
   function logout() {
     setInstallOpen(false)
     setLive(undefined)
-    sessionStorage.removeItem("lac-role")
-    setActor("")
     navigate("/login")
   }
 
@@ -192,9 +166,7 @@ export default function App() {
               </span>
               <span className="workspace-account">
                 <strong>{workspaceUser.name}</strong>
-                <small>
-                  {workspaceUser.role} workspace{live ? "" : " · Demo"}
-                </small>
+                <small>{workspaceUser.role} workspace</small>
               </span>
               <button type="button" className="secondary" onClick={logout}>
                 Logout
@@ -229,8 +201,8 @@ export default function App() {
                     {label}
                   </a>
                 ))}
-                <a href={user || live ? "/portal" : "/login"}>
-                  {user || live ? "Dashboard" : "Sign in"}
+                <a href={live ? "/portal" : "/login"}>
+                  {live ? "Dashboard" : "Sign in"}
                 </a>
                 <a href="/book" className="button primary">
                   Book a lesson <span>↗</span>
@@ -325,8 +297,10 @@ export default function App() {
             )}
             <div className="cards">
               {(page === "home"
-                ? services.filter((_, i) => [0, 1, 3].includes(i))
-                : state.catalog.filter((s) =>
+                ? listedServices.filter((s) =>
+                    ["assessment", "lesson", "class4"].includes(s.id)
+                  )
+                : listedServices.filter((s) =>
                     category === "All"
                       ? true
                       : category === "Lessons"
@@ -363,7 +337,7 @@ export default function App() {
               ))}
               {page === "lessons" &&
                 ["All", "Packages"].includes(category) &&
-                state.offers.map((p) => (
+                listedPackages.map((p) => (
                   <article className="card" key={p.id}>
                     <div className="eyebrow">SAVE {money(p.savings)}</div>
                     <h3>{p.lessons} lessons</h3>
@@ -508,7 +482,7 @@ export default function App() {
             </section>
           </section>
         )}
-        {(page === "login" || (portal && !user && !live)) && (
+        {(page === "login" || (portal && !live)) && (
           <section className="wrap section narrow">
             <div className="eyebrow">
               <i /> L.A.C. PORTAL
@@ -524,23 +498,9 @@ export default function App() {
                 }}
               />
             )}
-            <p>
-              Explore a sample account with fictional records. This preview does
-              not make real appointments or collect payment.
-            </p>
-            <div className="cards role-cards">
-              {(["student", "driver", "instructor", "admin"] as const).map(
-                (role) => (
-                  <button
-                    className="card secondary"
-                    key={role}
-                    onClick={() => enter(role)}
-                  >
-                    {role} demo <span>↗</span>
-                  </button>
-                )
-              )}
-            </div>
+            {!apiOrigin && (
+              <p>School sign-in is unavailable on this deployment.</p>
+            )}
           </section>
         )}
         {portal && live && (
@@ -549,30 +509,8 @@ export default function App() {
             token={live.token}
             user={live.user}
             booking={page === "book"}
-            bookingConfirmed={bookingConfirmed}
-          />
-        )}
-        {portal && !live && user && (
-          <Portal
-            key={user.id + page + demoRevision}
-            state={state}
-            user={user}
-            save={save}
-            bookingConfirmed={bookingConfirmed}
-            resetDemo={() => {
-              if (
-                !window.confirm(
-                  "Replace this browser’s demo bookings and changes with fresh sample data?"
-                )
-              )
-                return
-              for (const person of state.people)
-                localStorage.removeItem("lac-inbox-" + person.id)
-              save(() => seed())
-              setDemoRevision((revision) => revision + 1)
-            }}
-            initial={page === "book" ? "Book a Session" : "Dashboard"}
             service={service}
+            bookingConfirmed={bookingConfirmed}
           />
         )}
       </main>
@@ -597,7 +535,7 @@ export default function App() {
       </footer>
       {!portal && (
         <div className="floating-chat">
-          {chat && <Chat state={state} close={() => setChat(false)} />}
+          {chat && <PublicAssistant services={listedServices} />}
           <AssistantButton onClick={() => setChat(!chat)} expanded={chat} />
         </div>
       )}

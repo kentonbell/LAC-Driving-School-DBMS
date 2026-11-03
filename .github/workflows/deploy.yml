@@ -1,0 +1,80 @@
+name: Deploy to Cloudflare
+
+on:
+  push:
+    branches: ['**']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cloudflare-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      PRODUCTION_BRANCH: ${{ vars.CF_PRODUCTION_BRANCH || github.event.repository.default_branch }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+      PAGES_PROJECT: ${{ vars.CF_PAGES_PROJECT }}
+      PAGES_URL: ${{ vars.CF_PAGES_URL }}
+      WORKER_NAME: ${{ vars.CF_WORKER_NAME }}
+      WORKER_URL: ${{ vars.CF_WORKER_URL }}
+      ENABLE_DEMO_DATA: ${{ vars.CF_ENABLE_DEMO_DATA || 'false' }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: |
+            frontend/package-lock.json
+            backend/package-lock.json
+      - name: Install and test the backend
+        working-directory: backend
+        run: |
+          npm ci
+          npx --no-install tsc --noEmit
+          npm test -- --run --config vitest.unit.config.mts
+      - name: Test and build the website
+        working-directory: frontend
+        shell: bash
+        run: |
+          npm ci
+          npm test
+          export VITE_API_URL=''
+          if [[ "$GITHUB_REF_NAME" == "$PRODUCTION_BRANCH" ]]; then
+            : "${WORKER_URL:?Set CF_WORKER_URL in GitHub repository variables}"
+            export VITE_API_URL="${WORKER_URL%/}"
+          fi
+          npm run build
+      - name: Deploy the production Worker
+        if: github.ref_name == env.PRODUCTION_BRANCH
+        working-directory: backend
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        shell: bash
+        run: |
+          : "${CLOUDFLARE_API_TOKEN:?Set CLOUDFLARE_API_TOKEN in GitHub repository secrets}"
+          : "${CLOUDFLARE_ACCOUNT_ID:?Set CLOUDFLARE_ACCOUNT_ID in GitHub repository variables}"
+          : "${WORKER_NAME:?Set CF_WORKER_NAME in GitHub repository variables}"
+          : "${PAGES_URL:?Set CF_PAGES_URL in GitHub repository variables}"
+          npx --no-install wrangler deploy --name "$WORKER_NAME" --keep-vars \
+            --var "FRONTEND_ORIGIN:${PAGES_URL%/}" --var "ENABLE_DEMO_DATA:$ENABLE_DEMO_DATA"
+          curl --fail --silent --show-error --retry 5 --retry-all-errors "${WORKER_URL%/}/health"
+          curl --fail --silent --show-error --retry 5 --retry-all-errors "${WORKER_URL%/}/api/catalog" > /dev/null
+      - name: Publish Pages
+        working-directory: backend
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        shell: bash
+        run: |
+          : "${CLOUDFLARE_API_TOKEN:?Set CLOUDFLARE_API_TOKEN in GitHub repository secrets}"
+          : "${CLOUDFLARE_ACCOUNT_ID:?Set CLOUDFLARE_ACCOUNT_ID in GitHub repository variables}"
+          : "${PAGES_PROJECT:?Set CF_PAGES_PROJECT in GitHub repository variables}"
+          npx --no-install wrangler pages deploy ../frontend/dist \
+            --project-name "$PAGES_PROJECT" --branch "$GITHUB_REF_NAME"

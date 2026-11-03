@@ -155,3 +155,7 @@ vite.config.ts.timestamp-*
 .env.*
 !.env.example
 .DS_Store
+.DS_Store
+api/.DS_Store
+.DS_Store
+api/.DS_Store

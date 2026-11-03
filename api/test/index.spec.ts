@@ -1,29 +1,40 @@
-import {
-	env,
-	createExecutionContext,
-	waitOnExecutionContext,
-	SELF,
-} from "cloudflare:test";
 import { describe, it, expect } from "vitest";
 import worker from "../src/index";
 
-// For now, you'll need to do something like this to get a correctly-typed
-// `Request` to pass to `worker.fetch()`.
-const IncomingRequest = Request<unknown, IncomingRequestCfProperties>;
-
-describe("Hello World worker", () => {
-	it("responds with Hello World! (unit style)", async () => {
-		const request = new IncomingRequest("http://example.com");
-		// Create an empty context to pass to `worker.fetch()`.
-		const ctx = createExecutionContext();
-		const response = await worker.fetch(request, env, ctx);
-		// Wait for all `Promise`s passed to `ctx.waitUntil()` to settle before running test assertions
-		await waitOnExecutionContext(ctx);
-		expect(await response.text()).toMatchInlineSnapshot(`"Hello World!"`);
-	});
-
-	it("responds with Hello World! (integration style)", async () => {
-		const response = await SELF.fetch("https://example.com");
-		expect(await response.text()).toMatchInlineSnapshot(`"Hello World!"`);
-	});
+describe("Worker boundary", () => {
+  it("reports health without secrets and does not cache responses", async () => {
+    const response = await worker.fetch(
+      new Request("https://lac.example/health"),
+      {},
+    );
+    expect(await response.json()).toEqual({ status: "ok" });
+    expect(response.headers.get("cache-control")).toBe("no-store");
+  });
+  it("fails closed without database configuration or a valid access code", async () => {
+    const req = new Request("https://lac.example/api/dashboard");
+    expect((await worker.fetch(req, {})).status).toBe(503);
+    expect(
+      (
+        await worker.fetch(req, {
+          DATABASE_URL: "postgresql://fake:fake@example.test/fake",
+        })
+      ).status,
+    ).toBe(401);
+  });
+  it("only allows cross-origin browser requests from the configured frontend", async () => {
+    const env = { FRONTEND_ORIGIN: "https://lac.example" };
+    const req = (origin: string) =>
+      new Request("https://api.example/api/chat", {
+        method: "OPTIONS",
+        headers: { Origin: origin },
+      });
+    expect((await worker.fetch(req("https://evil.example"), env)).status).toBe(
+      403,
+    );
+    const allowed = await worker.fetch(req(env.FRONTEND_ORIGIN), env);
+    expect(allowed.status).toBe(204);
+    expect(allowed.headers.get("access-control-allow-origin")).toBe(
+      env.FRONTEND_ORIGIN,
+    );
+  });
 });

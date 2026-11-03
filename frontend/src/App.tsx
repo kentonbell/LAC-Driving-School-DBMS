@@ -1,3 +1,4 @@
+import { InstallHelp, installPlatform } from "./InstallHelp"
 import { AssistantButton } from "./WorkspaceActions"
 import { useEffect, useState, type MouseEvent } from "react"
 import { services, pickups, policies, money } from "./catalog"
@@ -126,7 +127,7 @@ export default function App() {
   }
   const logo = (
     <>
-      <img src="/brand/lac.jpg" alt="" />
+      <img src="/brand/logo.png" alt="" />
       <span>
         L.A.C. <small>DRIVING SCHOOL</small>
       </span>
@@ -134,7 +135,29 @@ export default function App() {
   )
   const portal = page === "portal" || page === "book"
   const workspaceUser = portal ? (live?.user ?? user) : undefined
+  const [installOpen, setInstallOpen] = useState(false)
+  const platform = installPlatform()
+  function bookingConfirmed() {
+    const account = live
+      ? "live:" + (live.user.id ?? live.user.role + ":" + live.user.name)
+      : user && "demo:" + user.id
+    if (
+      !account ||
+      !platform ||
+      !matchMedia("(max-width: 760px)").matches
+    )
+      return
+    try {
+      const key = "lac-install-offered:" + account
+      if (localStorage.getItem(key)) return
+      localStorage.setItem(key, "true")
+      setInstallOpen(true)
+    } catch {
+      // Storage restrictions must not interrupt booking confirmation.
+    }
+  }
   function logout() {
+    setInstallOpen(false)
     setLive(undefined)
     sessionStorage.removeItem("lac-role")
     setActor("")
@@ -176,6 +199,15 @@ export default function App() {
               <button type="button" className="secondary" onClick={logout}>
                 Logout
               </button>
+              {platform && (
+                <button
+                  type="button"
+                  className="secondary workspace-install"
+                  onClick={() => setInstallOpen(true)}
+                >
+                  Install app
+                </button>
+              )}
             </div>
           ) : (
             <>
@@ -208,6 +240,9 @@ export default function App() {
           )}
         </div>
       </header>
+      {platform && workspaceUser && installOpen && (
+        <InstallHelp platform={platform} close={() => setInstallOpen(false)} />
+      )}
       <main id="main" tabIndex={-1} key={page}>
         {page === "home" && (
           <>
@@ -514,6 +549,7 @@ export default function App() {
             token={live.token}
             user={live.user}
             booking={page === "book"}
+            bookingConfirmed={bookingConfirmed}
           />
         )}
         {portal && !live && user && (
@@ -522,6 +558,7 @@ export default function App() {
             state={state}
             user={user}
             save={save}
+            bookingConfirmed={bookingConfirmed}
             resetDemo={() => {
               if (
                 !window.confirm(

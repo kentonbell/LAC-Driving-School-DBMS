@@ -24,6 +24,7 @@ import {
 const eventTime = new Intl.DateTimeFormat("en-CA", {
   timeStyle: "short",
   timeZone: zone,
+  hour12: true,
 })
 
 const nav: Record<Person["role"], MenuGroup[]> = {
@@ -175,6 +176,7 @@ function Book({
   service,
   existing,
   finished,
+  bookingConfirmed,
 }: {
   state: State
   user: Person
@@ -182,6 +184,7 @@ function Book({
   service: string
   existing?: Lesson
   finished: () => void
+  bookingConfirmed?: () => void
 }) {
   const staff = state.people.filter((p) => teaching(p) && p.active)
   const [step, setStep] = useState(0),
@@ -268,6 +271,9 @@ function Book({
       return { ...s, lessons: [...s.lessons.filter((x) => x.id !== l.id), l] }
     })
     setStep(2)
+    if (!existing && !(request && isStudent) && mode !== "Special time") {
+      bookingConfirmed?.()
+    }
   }
   return (
     <article className="card booking">
@@ -432,7 +438,7 @@ function Book({
                         className={time === t ? "primary" : "secondary"}
                         onClick={() => setTime(t)}
                       >
-                        {t}
+                        {eventTime.format(startAt(date, t))}
                       </button>
                     ))}
                   </div>
@@ -545,6 +551,7 @@ export function Portal({
   initial,
   service,
   resetDemo,
+  bookingConfirmed,
 }: {
   state: State
   user: Person
@@ -552,6 +559,7 @@ export function Portal({
   initial: string
   service: string
   resetDemo: () => void
+  bookingConfirmed: () => void
 }) {
   const [tab, setTab] = useState(
       nav[user.role].some((group) => group.items.includes(initial))
@@ -1144,6 +1152,7 @@ export function Portal({
             )}
             {tab === "Book a Session" && (
               <Book
+                bookingConfirmed={bookingConfirmed}
                 state={state}
                 user={user}
                 save={save}

@@ -150,6 +150,7 @@ export const stamp = (value: number) =>
     dateStyle: "medium",
     timeStyle: "short",
     timeZone: zone,
+    hour12: true,
   }).format(value)
 export function startAt(date: string, time: string) {
   const utc = Date.parse(date + "T" + time + ":00Z")

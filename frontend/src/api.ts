@@ -1,5 +1,5 @@
 import type { Role } from "./domain"
-export const apiOrigin = import.meta.env.VITE_API_URL?.replace(/\/$/, "") as
+export const apiOrigin = import.meta.env.VITE_API_URL?.trim().replace(/\/$/, "") as
   string | undefined
 export type LiveUser = { name: string; role: Role; id?: string }
 export async function call<T>(
@@ -14,6 +14,8 @@ export async function call<T>(
       ...(body ? { "Content-Type": "application/json" } : {}),
     },
     body: body ? JSON.stringify(body) : undefined,
+  }).catch(() => {
+    throw Error("Unable to reach the school portal. Check the connection and try again.")
   })
   const data = await response.json()
   if (!response.ok)

@@ -15,6 +15,10 @@ export function LiveSignIn({
       onSubmit={async (e) => {
         e.preventDefault()
         const token = String(new FormData(e.currentTarget).get("code")).trim()
+        if (!/^[a-f0-9]{64}$/.test(token)) {
+          setError("Enter the 64-character school access code printed in Terminal.")
+          return
+        }
         setBusy(true)
         setError("")
         try {
@@ -33,7 +37,6 @@ export function LiveSignIn({
           type="password"
           name="code"
           required
-          pattern="[a-f0-9]{64}"
         />
       </label>
       <button className="primary" disabled={busy}>

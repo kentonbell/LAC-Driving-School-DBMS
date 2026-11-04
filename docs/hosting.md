@@ -1,5 +1,23 @@
 # Put L.A.C. Driving School online
 
+## Auto-deploy the existing backend Worker
+
+For the live setup with `lac` serving the website and `lac-backend` serving the API, open **Workers & Pages → lac-backend → Settings → Builds → Connect**. Select the same GitHub repository as the frontend and configure the existing Worker as follows.
+
+| Field | Value |
+| --- | --- |
+| Repository | `kentonbell/LAC-Driving-School-DBMS` |
+| Production branch | Match the branch configured on the frontend Worker `lac` |
+| Root directory | `backend` |
+| Build command | Leave blank |
+| Deploy command | `npx wrangler deploy` |
+
+Push the updated Wrangler config to that branch and check the backend Worker's build history. The config targets `lac-backend` and preserves dashboard runtime variables. See [Cloudflare Workers Builds](https://developers.cloudflare.com/workers/ci-cd/builds/).
+
+Worker builds deploy application code. To update the installed demo functions, run [demo.sql](../backend/database/demo.sql) separately in the Neon SQL Editor on the branch and database used by the backend. See [the demo guide](demo.md) for the steps to load the new bookings.
+
+## Cloudflare Pages setup
+
 Follow these steps in order for a **class demo with fictional data**. You can keep your existing Cloudflare setup. This guide will help you identify which part you already have and add the missing part.
 
 | What it does | Where it lives | What to open |

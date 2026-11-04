@@ -4,7 +4,8 @@
  */
 {
 	"$schema": "node_modules/wrangler/config-schema.json",
-	"name": "api",
+	"name": "lac-backend",
+	"keep_vars": true,
 	"main": "src/index.ts",
 	"compatibility_date": "2026-10-06",
 	"observability": {

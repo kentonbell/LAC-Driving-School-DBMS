@@ -23,10 +23,20 @@ DECLARE
  booking jsonb;
  result jsonb;
 BEGIN
+ IF (SELECT count(*) FROM lesson WHERE NOT counts_toward_package) <> 50 OR EXISTS (
+  SELECT 1 FROM lesson
+  CROSS JOIN LATERAL (SELECT start_at AT TIME ZONE 'America/Vancouver' AS local_start) local
+  WHERE NOT counts_toward_package AND (
+   local_start < date '2026-11-01' OR local_start >= date '2026-12-01'
+   OR extract(isodow FROM local_start) NOT BETWEEN 1 AND 5
+  )
+ ) THEN
+  RAISE EXCEPTION 'Expected 50 extra November 2026 weekday bookings';
+ END IF;
  IF NOT EXISTS(SELECT 1 FROM student_package_balance WHERE student_id=alex AND remaining_lessons=4 AND reserved_lessons=1 AND unallocated_lessons=3) THEN
   RAISE EXCEPTION 'Invalid seeded entitlement';
  END IF;
- SELECT lesson_id INTO STRICT l FROM lesson WHERE student_id=alex AND status='scheduled';
+ SELECT lesson_id INTO STRICT l FROM lesson WHERE student_id=alex AND status='scheduled' AND counts_toward_package;
  result := workspace_action(alex_user,'cancel',jsonb_build_object('lesson',l),pickups);
  IF result <> '{"pending":true}' THEN RAISE EXCEPTION 'Late cancellation skipped approval'; END IF;
  SELECT request_id INTO STRICT r FROM approval_request WHERE lesson_id=l AND status='pending';
@@ -35,7 +45,7 @@ BEGIN
   RAISE EXCEPTION 'Cancellation did not release the reservation';
  END IF;
  booking := jsonb_build_object('student',sam,'staff',taylor,'service',v,'pickup',0,
-  'start',extract(epoch from ((tomorrow+2+time '11:00') AT TIME ZONE 'America/Vancouver'))*1000);
+  'start',extract(epoch from ((tomorrow+2+time '13:00') AT TIME ZONE 'America/Vancouver'))*1000);
  PERFORM workspace_action(alex_user,'book',jsonb_build_object('booking',booking,'mode','group'),pickups);
  SELECT request_id INTO STRICT r FROM approval_request WHERE user_id=alex_user AND kind='group';
  PERFORM workspace_action(admin,'decision',jsonb_build_object('id',r,'decision','Approve','participants',ARRAY[sam]),pickups);

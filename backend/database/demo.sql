@@ -1,6 +1,6 @@
 -- Install only on a dedicated demonstration database, after workspace.sql.
 BEGIN;
-CREATE FUNCTION empty_demo_data() RETURNS void LANGUAGE plpgsql AS $$
+CREATE OR REPLACE FUNCTION empty_demo_data() RETURNS void LANGUAGE plpgsql AS $$
 BEGIN
  PERFORM pg_advisory_xact_lock(3392026);
  -- Preserve administrator credentials so the admin can sign in and reseed.
@@ -15,9 +15,10 @@ BEGIN
  DELETE FROM instructor;
 END $$;
 
-CREATE FUNCTION seed_demo_data() RETURNS void LANGUAGE plpgsql AS $$
+CREATE OR REPLACE FUNCTION seed_demo_data() RETURNS void LANGUAGE plpgsql AS $$
 DECLARE
  today date := (now() AT TIME ZONE 'America/Vancouver')::date;
+ november date := date '2026-11-01';
  alex bigint;
  sam bigint;
  taylor bigint;
@@ -45,8 +46,13 @@ BEGIN
  SELECT alex,pack,v,today-14,number_of_lessons,package_price,today+350 FROM package WHERE package_id=pack
  RETURNING purchase_id INTO purchase;
  INSERT INTO instructor_availability(instructor_id,start_at,end_at)
- SELECT i,(today+n+time '09:00') AT TIME ZONE 'America/Vancouver',(today+n+time '18:00') AT TIME ZONE 'America/Vancouver'
- FROM unnest(ARRAY[taylor,morgan]) i CROSS JOIN generate_series(0,90) n;
+ SELECT i,(d+time '09:00') AT TIME ZONE 'America/Vancouver',(d+time '18:00') AT TIME ZONE 'America/Vancouver'
+ FROM unnest(ARRAY[taylor,morgan]) i CROSS JOIN (
+   SELECT today+n AS d FROM generate_series(0,90) n
+   UNION
+   SELECT november+n FROM generate_series(0,29) n
+   WHERE extract(isodow FROM november+n) BETWEEN 1 AND 5
+ ) days;
  INSERT INTO lesson(student_id,instructor_id,service_id,purchase_id,start_at,end_at,pickup_address,status,counts_toward_package,agreed_price)
  SELECT alex,taylor,v,purchase,(today+n+time '13:00') AT TIME ZONE 'America/Vancouver',
  (today+n+time '14:30') AT TIME ZONE 'America/Vancouver','19950 Willowbrook Drive, Langley Township, BC',
@@ -58,5 +64,27 @@ BEGIN
  INSERT INTO payment(student_id,amount,note) VALUES(alex,200,'Package deposit');
  SELECT user_id INTO u FROM application_user WHERE instructor_id=morgan;
  INSERT INTO approval_request(user_id,kind,day,reason) VALUES(u,'schedule',today+4,(today+4)||' · Day off');
+
+ -- Keep 13:00 free for the walkthrough lessons and use distinct two-hour slots.
+ WITH demo_slots AS MATERIALIZED (
+   SELECT november+n AS day, slot,
+     CASE WHEN random()<0.5 THEN alex ELSE sam END AS student_id,
+     CASE WHEN random()<0.5 THEN taylor ELSE morgan END AS instructor_id,
+     (ARRAY['assessment','lesson','extended','class4','test120','rental','pretrip'])[
+       1+floor(random()*7)::int
+     ] AS service_key
+   FROM generate_series(0,29) n
+   CROSS JOIN unnest(ARRAY[time '09:00',time '11:00',time '15:00']) slot
+   WHERE extract(isodow FROM november+n) BETWEEN 1 AND 5
+   ORDER BY random()
+   LIMIT 50
+ )
+ INSERT INTO lesson(student_id,instructor_id,service_id,start_at,end_at,pickup_address,status,agreed_price)
+ SELECT d.student_id,d.instructor_id,s.service_id,
+   (d.day+d.slot) AT TIME ZONE 'America/Vancouver',
+   (d.day+d.slot+make_interval(mins=>s.duration_minutes)) AT TIME ZONE 'America/Vancouver',
+   '19950 Willowbrook Drive, Langley Township, BC',
+   CASE WHEN d.day<today THEN 'completed' ELSE 'scheduled' END,s.base_price
+ FROM demo_slots d JOIN service s ON s.public_key=d.service_key;
 END $$;
 COMMIT;

@@ -17,7 +17,9 @@ export async function call<T>(
   }).catch(() => {
     throw Error("Unable to reach the school portal. Check the connection and try again.")
   })
-  const data = await response.json()
+  const data = await response.json().catch(() => {
+    throw Error("The school portal returned an unexpected response. Check that the site points to the backend API.")
+  })
   if (!response.ok)
     throw Error(data.error ?? "Unable to reach the school portal.")
   return data

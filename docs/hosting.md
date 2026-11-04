@@ -190,7 +190,7 @@ This is a **second frontend deployment**. The first got the site online. This on
 
 ## 6. Optional: Deploy both Pages and the Worker from GitHub Actions
 
-Use the repository's [Deploy to Cloudflare workflow](../.github/workflows/deploy.yml). Pushes to the production branch deploy the Worker from `backend`, check the Worker and its database connection, and publish the website from `frontend/dist`. Other branch pushes publish website previews with live sign-in disabled. For example, use `Kenton` as the production branch only if that is the branch you intend to publish; otherwise merge into `main`.
+Use the repository's [Deploy to Cloudflare workflow](../.github/workflows/deploy.yml). A manual workflow run on the production branch deploys the Worker from `backend`, check the Worker and its database connection, and publish the website from `frontend/dist`. Manual runs on other branches publish website previews with live sign-in disabled. For example, use `Kenton` as the production branch only if that is the branch you intend to publish; otherwise merge into `main`.
 
 1. In Cloudflare Pages, confirm the production branch. Set the same branch in GitHub below. On a Git-integrated Pages project, disable automatic production **and** preview builds in Cloudflare so GitHub Actions is the only publisher. Keep the existing Pages project and URL. If the Worker has its own automatic Git deploy, disable that too. See [Pages Git integration](https://developers.cloudflare.com/pages/get-started/git-integration/).
 2. In Cloudflare, create an API token limited to the account hosting both projects, with **Account → Cloudflare Pages → Edit** and **Account → Workers Scripts → Edit**. In GitHub, open **Settings → Secrets and variables → Actions** and create the repository secret `CLOUDFLARE_API_TOKEN`.
@@ -207,4 +207,4 @@ Use the repository's [Deploy to Cloudflare workflow](../.github/workflows/deploy
    | `CF_ENABLE_DEMO_DATA` | `true` for a dedicated fictional demo database only; defaults to `false` |
 
    Keep `DATABASE_URL` in the existing Cloudflare Worker secret from step 3. The workflow does not run SQL or need Neon credentials.
-4. Commit and push the project changes, including the workflow and the renamed directories, then open GitHub **Actions → Deploy to Cloudflare** to check the run. Open the production Pages URL and test sign-in after it succeeds.
+4. Commit and push the project changes, including the workflow and the renamed directories, then open GitHub **Actions → Deploy to Cloudflare → Run workflow** and choose the production branch. Open the production Pages URL and test sign-in after it succeeds.

@@ -902,6 +902,19 @@ textarea {
   .line {
     gap: 0.5rem;
   }
+  .site-shell:has(> .floating-chat) {
+    --assistant-bottom: max(1rem, env(safe-area-inset-bottom));
+    --assistant-height: 2.75rem;
+  }
+  .site-shell:has(> .floating-chat) > footer {
+    padding-bottom: calc(var(--assistant-bottom) + var(--assistant-height) + 1rem);
+  }
+  .floating-chat {
+    bottom: var(--assistant-bottom);
+  }
+  .floating-chat > .primary {
+    min-height: var(--assistant-height);
+  }
   .footer {
     align-items: flex-start;
   }

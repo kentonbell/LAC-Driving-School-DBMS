@@ -34,7 +34,7 @@ Check the existing Worker before redeploying it:
 2. Open [Worker catalog](https://lac.kentonbell.workers.dev/api/catalog). Expect JSON with `services` and `packages`. If health works but the catalog fails, check the existing Neon database and Worker secret in steps 2–3.
 3. If both checks pass, reuse the existing Worker. Continue at step 4 once your Pages site is available. If you already configured that Pages site and Worker in step 4, continue to step 5 to create an admin code.
 
-**Copy-paste convention:** Blocks labeled **paste as-is** require no edits on your Mac. When Terminal asks you for a value, paste the actual value from the specified screen and press Return. Keep the two Cloudflare addresses handy. Keep the Neon connection string and school access code private.
+**Copy-paste convention:** Blocks labeled **paste as-is** require no edits on your Mac. When Terminal asks you for a value, paste the actual value from the specified screen and press Return. Keep the two Cloudflare addresses handy. Keep the Neon connection string and passwords private.
 
 ## 1. Find your existing project and get the public website showing
 
@@ -175,22 +175,17 @@ This is a **second frontend deployment**. The first got the site online. This on
 
 - **Git-connected Pages:** In your existing Pages project's **Settings → Variables and Secrets**, select **Production**. Add a plain text variable named exactly `VITE_API_URL`. Its value is the actual **Worker address** from step 3, including `https://` and excluding any path or trailing slash. Save and trigger a new production build. The website gets this setting when it builds.
 
-**Checkpoint:** Open the production **Pages address** in a private browser window. Click **Sign in**. You should see a **School access code** field. Use the Pages address you passed to the Worker in step 3; other addresses, including Pages preview URLs, are not allowed by that Worker's origin setting.
+**Checkpoint:** Open the production **Pages address** in a private browser window. Click **Sign in**. You should see **Email** and **Password** fields. Use the Pages address you passed to the Worker in step 3; other addresses, including Pages preview URLs, are not allowed by that Worker's origin setting.
 
-## 5. Create the first admin code and sign in
+## 5. Create the first email/password login
 
-1. In Neon SQL Editor, on the same branch and database used by the Worker, check that the access table exists:
+1. Apply `backend/database/login.sql` in Neon SQL Editor after the existing schema, portal, workspace, and catalog migrations. Apply it once. Existing installations need only the new login migration.
+2. On your Mac, put the same database connection in `backend/.dev.vars` as `DATABASE_URL="postgresql://…"`. Keep this file private.
+3. Open a terminal in `backend` and run `node scripts/setup-login.mjs`. Enter `admin`, your login email, and a new password when prompted. Password typing is hidden. This creates or updates the `school-admin` account and invalidates its previous sessions.
+4. Deploy both the updated backend and frontend together. Open the website's sign-in page and enter the email and password you just configured.
+5. Populate the dedicated demo database from **Admin → Demo Data**. In **Students** or **Staff**, expand a record and use **Set / reset login** to provision each person's login. Contact emails may be shared, but login emails must be unique.
 
-   ```sql
-   SELECT current_database(), to_regclass('public.portal_access') AS access_table;
-   ```
-
-   If `access_table` is blank, apply `backend/database/portal.sql` after the schema. If you already created an admin using the old instructions, the steps below reuse that account if it is active.
-
-2. From the repository root on your Mac, run `bash backend/scripts/bootstrap-demo-admin.sh`. It displays a private code and copies **one SQL statement** to your clipboard.
-3. Paste the SQL into Neon and run it. It must return **one row** with a user ID and an expiry. If it returns zero rows, the existing `school-admin` account is inactive or has another role; inspect that account before proceeding. Copy the original 64-character code from Terminal and enter it on the production Pages **Sign in** screen. The code expires after one day.
-
-4. In the admin workspace, open **Demo Data → Populate database**, check the confirmation box, and submit. Open **Students** and look for **Alex Demo**. Open **Staff** and look for **Taylor Demo** and **Morgan Demo**. You can generate separate one-day codes on those records for testing the other dashboards. Follow the [demo walkthrough](demo.md) for the remaining checks.
+See [login setup and migration details](login.md). The access-code sign-in and code issuance endpoints are no longer supported.
 
 ## If something doesn't work
 
@@ -198,10 +193,10 @@ This is a **second frontend deployment**. The first got the site online. This on
 | --- | --- |
 | Worker root returns `{"error":"Route not found."}` | This is expected. Check `/health` and `/api/catalog` on the Worker and open the production `.pages.dev` URL for the homepage. |
 | Pages URL returns 404 or has no homepage | Check that the latest Pages deployment succeeded and that the build output contained `index.html` at its top level. |
-| Homepage works, but there is no access code field | Rebuild and redeploy the frontend from step 4 with `VITE_API_URL` set. Try the production URL in a private window to rule out an older cached app. |
+| Homepage works, but there is no email/password form | Rebuild and redeploy the frontend from step 4 with `VITE_API_URL` set. Try the production URL in a private window to rule out an older cached app. |
 | Worker `/health` works but `/api/catalog` fails | Check that `DATABASE_URL` was added to the exact Worker you opened and that it points to the Neon branch and database where all scripts ran. |
-| Access code field is visible but the request cannot reach the portal | Check that Pages was built with the full Worker address and that the Worker's `FRONTEND_ORIGIN` matches the exact Pages origin, without a final slash. |
-| Sign-in says to enter a valid school access code | Use the original code printed by Terminal. Check that the SQL from step 5 returned an expiry and ran against the database connected to the Worker. |
+| Login form is visible but the request cannot reach the portal | Check that Pages was built with the full Worker address and that the Worker's `FRONTEND_ORIGIN` matches the exact Pages origin, without a final slash. |
+| Sign-in says the email or password is incorrect | Check that `login.sql` was applied and the login was provisioned against the same database used by the Worker. Use the setup script to reset the administrator password. |
 | Admin signs in but demo buttons are disabled | Confirm `demo.sql` ran in Neon and the deployed Worker has `ENABLE_DEMO_DATA=true`. |
 | Demo populate says people already exist | The demo is already populated or the database has other records. Inspect **Students** and **Staff** first. On the dedicated demo database, **Empty database** clears records but keeps administrator access. |
 

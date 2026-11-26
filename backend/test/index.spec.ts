@@ -2,12 +2,24 @@ import { describe, it, expect } from 'vitest';
 import worker from '../src/index';
 
 describe('Worker boundary', () => {
+	it('validates login input before attempting database access', async () => {
+		const response = await worker.fetch(new Request('https://lac.example/api/auth/login', {
+			method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({email:'invalid', password:'long password'}),
+		}), {DATABASE_URL:'postgresql://fake:fake@example.test/fake'});
+		expect(response.status).toBe(400);
+	});
+	it('allows sign-out when no current session exists', async () => {
+		const response = await worker.fetch(new Request('https://lac.example/api/auth/logout', {method:'POST'}),
+			{DATABASE_URL:'postgresql://fake:fake@example.test/fake'});
+		expect(response.status).toBe(200);
+		expect(await response.json()).toEqual({signedOut:true});
+	});
 	it('reports health without secrets and does not cache responses', async () => {
 		const response = await worker.fetch(new Request('https://lac.example/health'), {});
 		expect(await response.json()).toEqual({ status: 'ok' });
 		expect(response.headers.get('cache-control')).toBe('no-store');
 	});
-	it('fails closed without database configuration or a valid access code', async () => {
+	it('fails closed without database configuration or a valid session', async () => {
 		const req = new Request('https://lac.example/api/dashboard');
 		expect((await worker.fetch(req, {})).status).toBe(503);
 		expect(
@@ -41,7 +53,7 @@ describe('Workspace permissions', () => {
 			body: JSON.stringify({ op, data }),
 		});
 
-	it('never sends a demo reset or access-code mutation to SQL for a student', async () => {
+	it('never sends a demo reset or login credential mutation to SQL for a student', async () => {
 		const { vi } = await import('vitest');
 		const fetch = vi.fn(async () =>
 			Response.json({
@@ -52,7 +64,7 @@ describe('Workspace permissions', () => {
 		vi.stubGlobal('fetch', fetch);
 		try {
 			expect((await worker.fetch(request('demo-empty', { confirm: 'demo-empty' }), env)).status).toBe(403);
-			expect((await worker.fetch(request('issue-code', { id: '5', role: 'student' }), env)).status).toBe(403);
+			expect((await worker.fetch(request('set-login', { id: '5', role: 'student', email: 'alex@example.test', password: 'a long password' }), env)).status).toBe(403);
 			expect(fetch).toHaveBeenCalledTimes(2);
 		} finally {
 			vi.unstubAllGlobals();

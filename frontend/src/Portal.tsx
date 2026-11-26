@@ -1,3 +1,4 @@
+import { normalizeEmail, validEmail, validPassword } from "../../shared/email"
 import { WorkspaceChat, type BookingPrefill } from "./WorkspaceChat"
 import { AssistantButton, MapDirections } from "./WorkspaceActions"
 import { MonthCalendar } from "./MonthCalendar"
@@ -1253,18 +1254,58 @@ export function Portal({
                       <PersonForm save={save} role={p.role} existing={p} />
                       {p.active && (
                         <Form
-                          label="Generate a one-day access code"
-                          onSave={async () => {
-                            const result = await save("issue-code", {
+                          label="Set / reset login"
+                          onSave={async (form) => {
+                            const email = normalizeEmail(
+                              text(form, "loginEmail")
+                            )
+                            const password = String(
+                              form.get("loginPassword") ?? ""
+                            )
+                            if (!validEmail(email))
+                              throw Error("Enter a valid login email.")
+                            if (!validPassword(password))
+                              throw Error(
+                                "Use at least 12 characters and at most 72 bytes for the password."
+                              )
+                            await save("set-login", {
                               id: p.id,
                               role: p.role,
+                              email,
+                              password,
                             })
                             setNotice(
-                              "Access code (copy and share securely): " +
-                                result.code
+                              "Login saved. Previous sessions have ended. Share the login details securely."
                             )
                           }}
-                        />
+                        >
+                          <label>
+                            Login email
+                            <input
+                              name="loginEmail"
+                              type="email"
+                              defaultValue={p.email}
+                              autoComplete="off"
+                              required
+                              maxLength={254}
+                            />
+                          </label>
+                          <label>
+                            New password
+                            <input
+                              name="loginPassword"
+                              type="password"
+                              autoComplete="new-password"
+                              required
+                              minLength={12}
+                              maxLength={72}
+                            />
+                          </label>
+                          <p>
+                            Use a unique password of at least 12 characters.
+                            This replaces any previous password.
+                          </p>
+                        </Form>
                       )}
                       {p.role === "student" ? (
                         <>

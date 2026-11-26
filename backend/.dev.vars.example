@@ -1,0 +1,7 @@
+# Copy to .dev.vars and enter credentials privately. Use a dedicated demo database.
+DATABASE_URL="REPLACE_WITH_DEMO_NEON_CONNECTION_STRING"
+FRONTEND_ORIGIN="http://localhost:5173"
+GEMINI_API_KEY="REPLACE_WITH_GEMINI_API_KEY"
+GEMINI_MODEL="REPLACE_WITH_GEMINI_MODEL_ID"
+# Enable only after confirming DATABASE_URL targets the dedicated demo database.
+ENABLE_DEMO_DATA="false"

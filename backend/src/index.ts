@@ -139,7 +139,20 @@ async function chat(req: Request, sql: SQL, u: User, env: Bindings) {
 			systemInstruction: {
 				parts: [
 					{
-						text: 'Select exactly one read-only function if appropriate. Never invent data or claim to change bookings. If unclear, ask a short clarification.',
+						text: `You are the L.A.C. Driving School assistant.
+Select exactly one appropriate read-only function for the user's question.
+
+Function selection rules:
+- Questions about lessons, bookings, or teaching schedules: get_my_teaching_schedule.
+- Questions about weekly lesson counts: get_my_lesson_summary.
+- Questions about a selected student's history: get_assigned_student_history.
+- Questions about school services, prices, hours, or policies: school_information.
+- Questions about students needing follow-up: follow_up.
+
+Use only functions that are provided in the available tools.
+The application supplies the selected date and student separately.
+Never invent records, change bookings, or reveal unauthorized information.
+Ask for clarification only when the user's intention is genuinely unclear.`,
 					},
 				],
 			},
@@ -152,7 +165,16 @@ async function chat(req: Request, sql: SQL, u: User, env: Bindings) {
 			generationConfig: { maxOutputTokens: 180 },
 		}),
 	});
-	if (!reply.ok) throw new HTTP(503, 'The assistant is unavailable. Please retry.');
+	if (!reply.ok) {
+    const errorBody = await reply.text();
+
+    console.error('GEMINI API ERROR:', {
+        status: reply.status,
+        body: errorBody,
+    });
+
+    throw new HTTP(503, 'The assistant is unavailable. Please retry.');
+}
 	const parts = (
 		(await reply.json()) as {
 			candidates?: {
@@ -252,9 +274,10 @@ export default {
 					})),
 					packages: offers.map((r) => ({ ...r, price: Number(r.price), savings: Number(r.savings) })),
 				});
-			} catch {
-				return json({ error: 'School catalog is unavailable.' }, 503);
-			}
+			} catch (error) {
+    console.error('CATALOG DATABASE ERROR:', error);
+    return json({ error: 'School catalog is unavailable.' }, 503);
+}
 		}
 		if (!url.pathname.startsWith('/api/')) return json({ error: 'Route not found.' }, 404);
 		if (origin && origin !== env.FRONTEND_ORIGIN) return json({ error: 'Origin is not allowed.' }, 403);

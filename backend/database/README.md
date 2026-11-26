@@ -95,7 +95,7 @@ does not require every historical lesson to fit a current availability window.
 Keep related changes in one transaction. When cancelling a purchase, first
 cancel its scheduled lessons. Lock the purchase before related multi-step edits.
 
-Reports can include school-wide records. The Worker holds database credentials, derives identity from expiring access codes, scopes queries by role, and filters private feedback. No passwords are stored here.
+Reports can include school-wide records. The Worker holds database credentials, derives identity from expiring password-login sessions, scopes queries by role, and filters private feedback. The login migration stores salted bcrypt password hashes; plaintext passwords are never stored.
 
 The seed uses fixed 2026/2027 dates so the balance example stays reproducible;
 upcoming/follow-up results depend on the date the queries are run.
@@ -129,3 +129,7 @@ also available from **Admin → Demo Data**. Clearing preserves administrator
 accounts and credentials and refuses to run if students or staff have addresses
 outside `example.test`. Run `workspace-tests.sql` on a fresh disposable
 database after the demo migration to exercise the SQL workflows.
+
+## Email/password sign-in
+
+Apply `login.sql` after the four application migrations, then follow [login setup](../../docs/login.md). The login migration adds credentials, sessions, and attempt limits without changing student or lesson history.

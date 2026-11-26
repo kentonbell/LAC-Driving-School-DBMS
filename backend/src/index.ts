@@ -1,3 +1,4 @@
+import { AuthError, digest, login, setLogin } from './auth';
 import { pickupAddresses, workspace, workspaceSlots } from './workspace';
 import { neon } from '@neondatabase/serverless';
 import { pickups, policies, services } from '../../frontend/src/catalog';
@@ -38,7 +39,7 @@ const bad = (message: string) => {
 	throw new HTTP(400, message);
 };
 const unauthorized = () => {
-	throw new HTTP(401, 'Enter a valid school access code.');
+	throw new HTTP(401, 'Your session has ended. Please sign in again.');
 };
 const deny = () => {
 	throw new HTTP(403, 'This operation is outside your account permissions.');
@@ -51,8 +52,8 @@ async function authenticate(req: Request, sql: SQL): Promise<User> {
 	).join('');
 	const rows = await sql`SELECT u.user_id::text,u.student_id::text,u.instructor_id::text,
    coalesce(i.staff_role,u.role) role,coalesce(s.first_name||' '||s.last_name,i.first_name||' '||i.last_name,'School administrator') name
-   FROM portal_access t JOIN application_user u USING(user_id) LEFT JOIN student s USING(student_id) LEFT JOIN instructor i USING(instructor_id)
-   WHERE t.token_digest=${digest} AND t.expires_at>now() AND u.is_active
+   FROM login_session t JOIN login_credential c USING(user_id) JOIN application_user u USING(user_id) LEFT JOIN student s USING(student_id) LEFT JOIN instructor i USING(instructor_id)
+   WHERE t.token_digest=${digest} AND t.credential_version=c.updated_at AND t.expires_at>now() AND u.is_active
      AND coalesce(s.status,'active')='active' AND coalesce(i.status,'active')='active'`;
 	return (rows[0] as User | undefined) ?? unauthorized();
 }
@@ -284,6 +285,14 @@ export default {
 		if (!env.DATABASE_URL) return json({ error: 'Live portal is not configured.' }, 503);
 		try {
 			const sql = neon(env.DATABASE_URL);
+			if (url.pathname === '/api/auth/login' && req.method === 'POST')
+				return json(await login(sql, await input(req), req.headers.get('CF-Connecting-IP') ?? 'local'));
+			// Sign-out is idempotent, including already expired or reset sessions.
+			if (url.pathname === '/api/auth/logout' && req.method === 'POST') {
+				const token = req.headers.get('Authorization')?.match(/^Bearer ([a-f\d]{64})$/)?.[1];
+				if (token) await sql`DELETE FROM login_session WHERE token_digest=${await digest(token)}`;
+				return json({ signedOut: true });
+			}
 			const u = await authenticate(req, sql);
 			if (url.pathname === '/api/me' && req.method === 'GET') return json({ id: u.user_id, name: u.name, role: u.role });
 			if (url.pathname === '/api/dashboard' && req.method === 'GET') {
@@ -350,20 +359,18 @@ export default {
 				if (op === 'record' && u.role === 'driver' && d.score != null) return deny();
 				if (op === 'availability' && typeof d.staff === 'string') d.staff = d.staff.replace(/^staff:/, '');
 				if (op === 'person' && typeof d.id === 'string') d.id = d.id.replace(/^staff:/, '');
-				if (op === 'issue-code') {
-					if (u.role !== 'admin') return deny();
-					const role = d.role === 'student' ? 'student' : 'instructor';
-					const target = typeof d.id === 'string' ? d.id.replace(/^staff:/, '') : null;
-					if (!positiveId(target)) return bad('Choose an account.');
-					const hex = (bytes: Uint8Array) => Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
-					const code = hex(crypto.getRandomValues(new Uint8Array(32)));
-					const digest = hex(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(code))));
-					const rows = await sql`INSERT INTO portal_access(token_digest,user_id,expires_at)
-            SELECT ${digest},user_id,now()+interval '1 day' FROM application_user
-            WHERE role=${role} AND coalesce(student_id,instructor_id)=${target}::bigint AND is_active RETURNING expires_at`;
-					if (!rows.length) return bad('Account unavailable.');
-					return json({ code });
-				}
+                if (op === 'issue-code') return deny();
+                if (op === 'set-login') {
+                    if (u.role !== 'admin') return deny();
+                    const role = d.role === 'student' ? 'student' : 'instructor';
+                    const target = typeof d.id === 'string' ? d.id.replace(/^staff:/, '') : null;
+                    if (!positiveId(target)) return bad('Choose an account.');
+                    const [account] = await sql`SELECT user_id::text FROM application_user
+                      WHERE role=${role} AND coalesce(student_id,instructor_id)=${target}::bigint AND is_active`;
+                    if (!account) return bad('Account unavailable.');
+                    await setLogin(sql, String(account.user_id), d.email, d.password);
+                    return json({ pending: false });
+                }
 				if (op === 'demo-seed' || op === 'demo-empty') {
 					if (u.role !== 'admin' || env.ENABLE_DEMO_DATA !== 'true') return deny();
 					if (d.confirm !== op) return bad('Confirm the demo database operation.');
@@ -378,7 +385,7 @@ export default {
 			if (url.pathname === '/api/chat' && req.method === 'POST') return json(await chat(req, sql, u, env));
 			return json({ error: 'Route not found.' }, 404);
 		} catch (error) {
-			if (error instanceof HTTP) return json({ error: error.message }, error.status);
+			if (error instanceof HTTP || error instanceof AuthError) return json({ error: error.message }, error.status);
 			const code = (error as { code?: string }).code;
 			if (code === '42501') return json({ error: 'This operation is outside your account permissions.' }, 403);
 			if (code === 'P0001') return json({ error: (error as Error).message }, 409);

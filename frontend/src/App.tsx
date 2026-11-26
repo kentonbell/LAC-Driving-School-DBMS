@@ -132,7 +132,15 @@ export default function App() {
       // Storage restrictions must not interrupt booking confirmation.
     }
   }
-  function logout() {
+  async function logout() {
+    if (live) {
+      try {
+        await call("auth/logout", live.token, {})
+      } catch {
+        window.alert("Could not sign out. Check your connection and try again.")
+        return
+      }
+    }
     setInstallOpen(false)
     setLive(undefined)
     navigate("/login")

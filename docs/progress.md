@@ -13,7 +13,7 @@ Updated November 3, 2026.
 ## Application and database
 
 - The public site includes service and package pricing, hours, pickup information, policies, and a link to the school portal. The frontend includes PWA support.
-- Admins can issue one-day school access codes to students and staff. Students can view packages, book lessons, and request changes. Staff can view schedules, request time off, and record attendance and feedback.
+- Admins can set or reset email/password logins for students and staff after applying the login migration. Students can view packages, book lessons, and request changes. Staff can view schedules, request time off, and record attendance and feedback.
 - The admin workspace includes approval queues, group sessions, student and staff records, payment tracking, and reports. Reminders appear in the portal and can be downloaded as calendar events.
 - Neon Postgres stores the catalog, bookings, package balances, payments, and role-specific records. Database constraints protect package entitlement and prevent overlapping lessons.
 - The demo seeder includes the original walkthrough fixtures plus 50 randomly selected weekday bookings across November 2026. See [the demo walkthrough](demo.md) for how to refresh the hosted demo.

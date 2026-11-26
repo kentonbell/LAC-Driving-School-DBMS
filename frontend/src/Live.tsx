@@ -1,3 +1,4 @@
+import { emailSuggestion, normalizeEmail, validEmail } from "../../shared/email"
 import { useCallback, useEffect, useRef, useState } from "react"
 import { Portal, type Save } from "./Portal"
 import type { Person, State } from "./domain"
@@ -7,38 +8,98 @@ export function LiveSignIn({
 }: {
   enter: (token: string, user: LiveUser) => void
 }) {
-  const [busy, setBusy] = useState(false),
-    [error, setError] = useState("")
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState("")
+  const [email, setEmail] = useState("")
+  const [showPassword, setShowPassword] = useState(false)
+  const suggestion = emailSuggestion(email)
   return (
     <form
       className="card form"
-      onSubmit={async (e) => {
-        e.preventDefault()
-        const token = String(new FormData(e.currentTarget).get("code")).trim()
-        if (!/^[a-f0-9]{64}$/.test(token)) {
-          setError("Enter the 64-character school access code printed in Terminal.")
+      noValidate
+      onSubmit={async (event) => {
+        event.preventDefault()
+        if (busy) return
+        const address = normalizeEmail(email)
+        const password = String(
+          new FormData(event.currentTarget).get("password") ?? ""
+        )
+        if (!validEmail(address)) {
+          setError("Enter a valid email, such as name@example.com.")
+          return
+        }
+        if (!password) {
+          setError("Enter your password.")
           return
         }
         setBusy(true)
         setError("")
         try {
-          enter(token, await call("me", token))
-        } catch (e) {
-          setError((e as Error).message)
+          const result = await call<{ token: string; user: LiveUser }>(
+            "auth/login",
+            "",
+            { email: address, password }
+          )
+          enter(result.token, result.user)
+        } catch (error) {
+          setError((error as Error).message)
         } finally {
           setBusy(false)
         }
       }}
     >
       <label>
-        School access code
+        Email
         <input
-          autoComplete="current-password"
-          type="password"
-          name="code"
+          type="email"
+          name="email"
+          autoComplete="username"
+          autoCapitalize="none"
+          spellCheck={false}
           required
+          maxLength={254}
+          value={email}
+          onChange={(event) => {
+            setEmail(event.target.value)
+            setError("")
+          }}
+          aria-describedby={suggestion ? "email-suggestion" : undefined}
         />
       </label>
+      {suggestion && (
+        <p id="email-suggestion" role="status">
+          Did you mean{" "}
+          <button
+            type="button"
+            className="secondary"
+            onClick={() => {
+              setEmail(suggestion)
+              setError("")
+            }}
+          >
+            {suggestion}
+          </button>
+          ? You can also keep the address you entered.
+        </p>
+      )}
+      <label>
+        Password
+        <input
+          type={showPassword ? "text" : "password"}
+          name="password"
+          autoComplete="current-password"
+          required
+          maxLength={72}
+        />
+      </label>
+      <button
+        type="button"
+        className="secondary"
+        aria-pressed={showPassword}
+        onClick={() => setShowPassword(!showPassword)}
+      >
+        {showPassword ? "Hide password" : "Show password"}
+      </button>
       <button className="primary" disabled={busy}>
         {busy ? "Signing in…" : "Sign in ↗"}
       </button>
@@ -47,6 +108,7 @@ export function LiveSignIn({
           {error}
         </p>
       )}
+      <p>Need an account or a password reset? Contact the school.</p>
     </form>
   )
 }
@@ -95,7 +157,7 @@ export function Live({
       token,
       { op, data: values }
     )
-    if (op !== "issue-code") {
+    if (op !== "set-login") {
       const version = ++loadVersion.current
       try {
         const next = await call<Workspace>("workspace", token)
